@@ -1,103 +1,68 @@
 import Image from "next/image";
+import BubbleHierarchy from "@/components/BubbleHierarchy";
+
+
+const sample1 = [
+  { "name": "Kusama", "level": 1, "source": "kusama" },
+  { "name": "Bio", "level": 2, "parent": "Kusama", "source": "kusama" },
+  { "name": "Art", "level": 2, "parent": "Kusama", "source": "kusama" },
+  { "name": "Style", "level": 3, "parent": "Art", "source": "kusama" },
+  { "name": "Exhibits", "level": 3, "parent": "Art", "source": "kusama" },
+  { "name": "Infinity Mirrors", "level": 4, "parent": "Exhibits", "source": "kusama" },
+  { "name": "Polka Dots", "level": 4, "parent": "Exhibits", "source": "kusama" },
+  { "name": "Pumpkin", "level": 4, "parent": "Exhibits", "source": "kusama" },
+  { "name": "Victoria Miro", "level": 4, "parent": "Exhibits", "source": "kusama" },
+  { "name": "David Zwirner", "level": 4, "parent": "Exhibits", "source": "kusama" },
+  { "name": "Fondation LV", "level": 4, "parent": "Exhibits", "source": "kusama" },
+  { "name": "Kusama Museum", "level": 4, "parent": "Exhibits", "source": "kusama" }
+];
+
+const sample2 = [
+  { "name": "Louis Vuitton", "level": 1, "source": "louis" },
+  { "name": "History", "level": 2, "parent": "Louis Vuitton", "source": "louis" },
+  { "name": "Products", "level": 2, "parent": "Louis Vuitton", "source": "louis" },
+  { "name": "Location", "level": 2, "parent": "Louis Vuitton", "source": "louis" },
+  { "name": "Travel & Culture", "level": 2, "parent": "Louis Vuitton", "source": "louis" },
+  { "name": "New York", "level": 3, "parent": "Location", "source": "louis" },
+  { "name": "Paris", "level": 3, "parent": "Location", "source": "louis" },
+  { "name": "London", "level": 3, "parent": "Location", "source": "louis" },
+  { "name": "St Tropez", "level": 3, "parent": "Location", "source": "louis" },
+  { "name": "Fondation LV", "level": 3, "parent": "Travel & Culture", "source": "louis" },
+  { "name": "Store", "level": 4, "parent": "New York", "source": "louis" },
+  { "name": "Hotel", "level": 4, "parent": "New York", "source": "louis" },
+  { "name": "Restaurant", "level": 4, "parent": "New York", "source": "louis" },
+  { "name": "Store", "level": 4, "parent": "Paris", "source": "louis" },
+  { "name": "Hotel", "level": 4, "parent": "Paris", "source": "louis" },
+  { "name": "Restaurant", "level": 4, "parent": "Paris", "source": "louis" },
+  { "name": "Store", "level": 4, "parent": "London", "source": "louis" },
+  { "name": "Store", "level": 4, "parent": "St Tropez", "source": "louis" },
+  { "name": "Restaurant", "level": 4, "parent": "St Tropez", "source": "louis" }
+];
+
 
 export default function Home() {
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <main style={{ padding: 16 }}>
+      <h1 style={{ marginBottom: 8 }}>Packed Bubbles (3-level view with overlay)</h1>
+      <p style={{ opacity: 0.8, marginBottom: 16 }}>
+        Click a bubble to open its children in an overlay (Level N+2). Use “Up” to drill up.
+      </p>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+      {/* Example 1 */}
+      <section style={{ marginBottom: 32 }}>
+        <h2 style={{ margin: "8px 0" }}>Sample JSON 1 — Kusama</h2>
+        <div style={{ height: 520 }}>
+          <BubbleHierarchy data={sample1} />
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+      </section>
+
+      {/* Example 2 */}
+      <section>
+        <h2 style={{ margin: "8px 0" }}>Sample JSON 2 — Louis Vuitton</h2>
+        <div style={{ height: 520 }}>
+          <BubbleHierarchy data={sample2} />
+        </div>
+      </section>
+    </main>
   );
 }
