@@ -10,6 +10,7 @@ import {
 import { scaleOrdinal } from "d3-scale";
 import { schemeCategory10 } from "d3-scale-chromatic";
 
+// ---------- Types ----------
 type FlatItem = {
   name: string;
   level: number; // 1..6
@@ -35,14 +36,18 @@ type BubbleHierarchyProps = {
   bg?: string;
 };
 
-// ---------- Utilities ----------
+type PlacedBubble = {
+  id: string;
+  name: string;
+  depth: 0 | 1 | 2; // parent, child, grandchild
+  data: TreeNode;
+  r: number;
+  x: number;
+  y: number;
+  parentId?: string;
+};
 
-/**
- * Convert flat (level/parent) list into a single tree:
- * { name: "root", children: [ level1 nodes … ] }
- * - Validates max level <= 6
- * - Allows multiple level-1 roots
- */
+// ---------- Utilities ----------
 function nestFlatToTree(items: FlatItem[]): TreeNode {
   const byName = new Map<string, TreeNode>();
   for (const it of items) {
@@ -53,7 +58,6 @@ function nestFlatToTree(items: FlatItem[]): TreeNode {
     }
     byName.set(it.name, { ...it, children: [] });
   }
-
   const roots: TreeNode[] = [];
   for (const node of byName.values()) {
     if (node.level === 1) {
@@ -61,13 +65,12 @@ function nestFlatToTree(items: FlatItem[]): TreeNode {
     } else {
       const p = node.parent ? byName.get(node.parent) : undefined;
       if (p) p.children!.push(node);
-      else roots.push(node); // fallback: missing parent -> treat as root
+      else roots.push(node);
     }
   }
   return { name: "root", children: roots };
 }
 
-/** Find a node in the tree by name (used for restoring focus) */
 function findNodeByName(root: TreeNode, name: string): TreeNode | null {
   if (root.name === name) return root;
   if (!root.children) return null;
@@ -78,7 +81,19 @@ function findNodeByName(root: TreeNode, name: string): TreeNode | null {
   return null;
 }
 
-/** Compute a packed layout for a given subtree */
+function findParentName(root: TreeNode, targetName: string): string | null {
+  function dfs(cur: TreeNode, parent: TreeNode | null): string | null {
+    if (cur.name === targetName) return parent?.name ?? null;
+    for (const c of cur.children || []) {
+      const r = dfs(c, cur);
+      if (r) return r;
+    }
+    return null;
+  }
+  return dfs(root, null);
+}
+
+/** d3.pack for main view (unchanged) */
 function computePackLayout(
   subtree: TreeNode,
   width: number,
@@ -88,39 +103,139 @@ function computePackLayout(
   const root = d3Hierarchy(subtree)
     .sum((d) => (typeof d.value === "number" ? d.value : 1))
     .sort((a, b) => (b.value || 0) - (a.value || 0));
-
   return d3Pack<TreeNode>().size([width, height]).padding(padding)(
     root
   ) as HierarchyCircularNode<TreeNode>;
 }
 
 type AnyRef<T> = React.RefObject<T | null> | React.MutableRefObject<T | null>;
-
 function useResizeObserver<T extends HTMLElement>(
   ref: AnyRef<T>
 ): { w: number; h: number } {
   const [size, setSize] = React.useState({ w: 0, h: 0 });
-
   React.useEffect(() => {
     const el = ref.current;
     if (!el) return;
-
     const obs = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
         setSize({ w: width, h: height });
       }
     });
-
     obs.observe(el);
     return () => obs.disconnect();
   }, [ref]);
-
   return size;
 }
 
-// ---------- Component ----------
+const clamp = (v: number, min: number, max: number) =>
+  Math.max(min, Math.min(max, v));
 
+/**
+ * Bubble PACKING layout for 3 levels (parent center, children around,
+ * grandchildren around each child). No nesting—everything is "beside".
+ */
+function computeBubblePackingLayout(
+  focus: TreeNode,
+  side: number
+): { nodes: PlacedBubble[]; side: number } {
+  const cx = side / 2;
+  const cy = side / 2;
+
+  const children = (focus.children || []) as TreeNode[];
+  const maxChildCount = children.length;
+
+  // Radii tuning (adjust to taste)
+  const rParent = clamp(side * 0.16, 40, 120);
+
+  // Children radii based on # of grandchildren to signal "weight"
+  const childInfo = children.map((c) => {
+    const gc = c.children?.length ?? 0;
+    const r = clamp(
+      side * 0.06 + gc * (side * 0.005),
+      side * 0.05,
+      side * 0.12
+    );
+    return { node: c, r, gc };
+  });
+
+  const gapC = clamp(side * 0.008, 6, 16);
+  const circumferenceNeeded = childInfo.reduce(
+    (acc, it) => acc + (2 * it.r + gapC),
+    0
+  );
+  const baseRing =
+    rParent + (childInfo.reduce((m, it) => Math.max(m, it.r), 0) || 0) + 28;
+  const ringR = Math.max(baseRing, circumferenceNeeded / (2 * Math.PI)); // ensure no overlap around ring
+  const ringCirc = 2 * Math.PI * ringR;
+
+  // Place children around the parent by arc-length proportion (bigger radius → bigger arc)
+  let theta = 0;
+  const placedChildren: PlacedBubble[] = childInfo.map((it, idx) => {
+    const arcLen = 2 * it.r + gapC;
+    const delta = (arcLen / ringCirc) * 2 * Math.PI;
+    const mid = theta + delta / 2;
+    const x = cx + ringR * Math.cos(mid);
+    const y = cy + ringR * Math.sin(mid);
+    theta += delta;
+    return {
+      id: it.node.name,
+      name: it.node.name,
+      depth: 1,
+      data: it.node,
+      r: it.r,
+      x,
+      y,
+      parentId: focus.name,
+    };
+  });
+
+  // Grandchildren ring per child
+  const gapG = clamp(side * 0.006, 4, 12);
+  const rGrandchildBase = clamp(side * 0.028, 8, 22);
+
+  const placedGrandchildren: PlacedBubble[] = [];
+  for (const ch of placedChildren) {
+    const gcNodes = (ch.data.children || []) as TreeNode[];
+    const cnt = gcNodes.length;
+    if (!cnt) continue;
+
+    const circumferenceG = cnt * (2 * rGrandchildBase + gapG);
+    const ringG = Math.max(ch.r + 18, circumferenceG / (2 * Math.PI));
+
+    // Distribute equally; grandkids are same radius here (you can vary by value if you want)
+    for (let i = 0; i < cnt; i++) {
+      const angle = (i / cnt) * 2 * Math.PI;
+      placedGrandchildren.push({
+        id: `${ch.id}::${gcNodes[i].name}`,
+        name: gcNodes[i].name,
+        depth: 2,
+        data: gcNodes[i],
+        r: rGrandchildBase,
+        x: ch.x + ringG * Math.cos(angle),
+        y: ch.y + ringG * Math.sin(angle),
+        parentId: ch.id,
+      });
+    }
+  }
+
+  // Parent at center (depth 0)
+  const parentPlaced: PlacedBubble = {
+    id: focus.name,
+    name: focus.name,
+    depth: 0,
+    data: focus,
+    r: rParent,
+    x: cx,
+    y: cy,
+  };
+
+  // Draw order: parent first (under) → children → grandkids
+  const nodes = [parentPlaced, ...placedChildren, ...placedGrandchildren];
+  return { nodes, side };
+}
+
+// ---------- Component ----------
 export default function BubbleHierarchy({
   data,
   width = 900,
@@ -130,100 +245,102 @@ export default function BubbleHierarchy({
 }: BubbleHierarchyProps) {
   // Prepare tree
   const tree: TreeNode = useMemo(() => nestFlatToTree(data), [data]);
-
   const color = React.useMemo(
     () => scaleOrdinal<string, string>(schemeCategory10),
     []
   );
 
-  // Focus node (the "current level" node whose children we show)
-  // Start at synthetic root (shows all level-1 items)
+  // Main view focus (unchanged)
   const [focusName, setFocusName] = useState<string>("root");
 
-  // Overlay node (the next level view)
-  const [overlayName, setOverlayName] = useState<string | null>(null);
+  // Overlay modal state (updated)
+  const [isOverlayOpen, setIsOverlayOpen] = useState(false);
+  const [overlayFocusName, setOverlayFocusName] = useState<string | null>(null);
 
-  // Re-find focus node from the immutable tree
-  const focusNode = useMemo(() => {
-    const node = findNodeByName(tree, focusName);
-    return node ?? tree;
-  }, [tree, focusName]);
+  // Re-find nodes
+  const focusNode = useMemo(
+    () => findNodeByName(tree, focusName) ?? tree,
+    [tree, focusName]
+  );
+  const overlayNode = useMemo(
+    () => (overlayFocusName ? findNodeByName(tree, overlayFocusName) : null),
+    [overlayFocusName, tree]
+  );
 
-  // Layout sizing (responsive container)
+  // Layout sizing
   const containerRef = useRef<HTMLDivElement>(null);
   const { w, h } = useResizeObserver(containerRef);
   const vw = Math.max(320, w || width);
   const vh = Math.max(360, h || height);
 
-  // Compute main pack for focusNode.children (Level N+1)
+  // Main view (still circle-packed for a clean "catalog" of the next level)
   const packRoot = useMemo<HierarchyCircularNode<TreeNode>>(() => {
-    // If focus has children, pack that subtree; else pack focus itself
     const target: TreeNode =
       focusNode?.children && focusNode.children.length > 0
         ? { ...focusNode, children: focusNode.children }
         : focusNode || tree;
-
     return computePackLayout(target, vw, vh, padding);
   }, [focusNode, vw, vh, padding, tree]);
-
-  // Compute overlay pack for overlay node (Level N+2)
-  const overlayNode = useMemo(() => {
-    if (!overlayName) return null;
-    return findNodeByName(tree, overlayName);
-  }, [overlayName, tree]);
-
-  // overlay pack
-  const overlayPack = useMemo<HierarchyCircularNode<TreeNode> | null>(() => {
-    if (!overlayNode || !overlayNode.children?.length) return null;
-    const side = Math.min(vw, vh);
-    return computePackLayout(
-      overlayNode,
-      Math.floor(side * 0.8),
-      Math.floor(side * 0.8),
-      Math.max(3, padding - 2)
-    );
-  }, [overlayNode, vw, vh, padding]);
 
   // Breadcrumb path from root → focus
   const breadcrumb = useMemo(() => {
     const path: string[] = [];
+    let found = false;
     function dfs(n: TreeNode, trail: string[]) {
       if (n.name === focusName) {
-        breadcrumbFound = true;
+        found = true;
         for (const t of trail) path.push(t);
         path.push(n.name);
         return;
       }
       for (const c of n.children || []) {
-        if (breadcrumbFound) return;
+        if (found) return;
         dfs(c, [...trail, n.name]);
       }
     }
-    let breadcrumbFound = false;
     dfs(tree, []);
-    // Cleanup synthetic "root" for display
     return path.filter((x) => x !== "root");
   }, [tree, focusName]);
 
-  // Click handlers
+  // Click handlers (main view)
   const canDrillDown = (n: HierarchyNode<TreeNode>) =>
-    n.data.children && n.data.children.length > 0;
-
+    !!(n.data.children && n.data.children.length > 0);
   const handleBubbleClick = (n: HierarchyNode<TreeNode>) => {
-    // Clicking a child bubble opens overlay (Level N+2)
     if (canDrillDown(n)) {
-      setOverlayName(n.data.name);
+      setOverlayFocusName(n.data.name);
+      setIsOverlayOpen(true);
     }
   };
 
-  const drillIntoOverlay = (n: HierarchyNode<TreeNode>) => {
-    // Make overlay node the new focus (down one level)
-    setFocusName(n.data.name);
-    setOverlayName(null);
+  // Overlay drill handlers
+  const overlayDrillDown = (n: PlacedBubble) => {
+    const target = findNodeByName(tree, n.name);
+    if (target?.children && target.children.length > 0) {
+      setOverlayFocusName(n.name);
+    }
+  };
+  const overlayDrillUp = () => {
+    if (!overlayFocusName) return;
+    const p = findParentName(tree, overlayFocusName);
+    if (p) setOverlayFocusName(p);
+    else setIsOverlayOpen(false);
   };
 
+  // Re-animate on overlay focus change
+  const [overlayAnimKey, setOverlayAnimKey] = useState(0);
+  useEffect(() => {
+    if (isOverlayOpen && overlayFocusName) setOverlayAnimKey((k) => k + 1);
+  }, [isOverlayOpen, overlayFocusName]);
+
+  // Bubble-packing layout for modal (parent + children + grandchildren)
+  const overlayLayout = useMemo(() => {
+    if (!overlayNode) return null;
+    const side = Math.floor(Math.min(vw, vh) * 0.9);
+    return computeBubblePackingLayout(overlayNode, side);
+  }, [overlayNode, vw, vh]);
+
+  // Main drill up (header button)
   const drillUp = () => {
-    // find parent of focusName
     function findParent(
       current: TreeNode,
       parent: TreeNode | null
@@ -237,7 +354,7 @@ export default function BubbleHierarchy({
     }
     const parentName = findParent(tree, null) || "root";
     setFocusName(parentName);
-    setOverlayName(null);
+    // don't touch modal here
   };
 
   return (
@@ -302,26 +419,24 @@ export default function BubbleHierarchy({
         )}
       </div>
 
-      {/* Main SVG */}
+      {/* Main SVG (unchanged layout, animated transform for smoothness) */}
       <svg width={vw} height={vh} style={{ display: "block" }}>
         <g>
           {packRoot
             .descendants()
-            .filter(
-              (d) => d.depth === 1
-            ) /* show only immediate children bubbles */
+            .filter((d) => d.depth === 1)
             .map((d, i) => {
               const fillKey =
                 d.data.source ??
-                (d.parent?.data.name || "") +
-                  (d.data.level ?? "") +
-                  (d.data.name ?? "");
-
+                `${d.parent?.data.name ?? ""}${d.data.level ?? ""}${d.data.name ?? ""}`;
               return (
                 <g
                   key={`${d.data.name}-${i}`}
-                  transform={`translate(${d.x},${d.y})`}
-                  style={{ cursor: canDrillDown(d) ? "pointer" : "default" }}
+                  style={{
+                    transform: `translate(${d.x}px, ${d.y}px)`,
+                    transition: "transform 320ms cubic-bezier(.2,.8,.2,1)",
+                    cursor: canDrillDown(d) ? "pointer" : "default",
+                  }}
                   onClick={() => handleBubbleClick(d)}
                 >
                   <circle
@@ -350,10 +465,10 @@ export default function BubbleHierarchy({
         </g>
       </svg>
 
-      {/* Overlay for Level N+2 */}
-      {overlayNode && overlayPack && (
+      {/* Overlay / Modal: Bubble PACKING hierarchy (3 levels visible) */}
+      {isOverlayOpen && overlayNode && overlayLayout && (
         <div
-          onClick={() => setOverlayName(null)}
+          onClick={() => setIsOverlayOpen(false)}
           style={{
             position: "absolute",
             inset: 0,
@@ -373,80 +488,40 @@ export default function BubbleHierarchy({
               borderRadius: 16,
               padding: 16,
               boxShadow: "0 8px 32px rgba(0,0,0,0.35)",
+              width: "min(88vw, 1000px)",
             }}
           >
             <div
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 8,
+                gap: 12,
                 marginBottom: 8,
+                justifyContent: "space-between",
               }}
             >
-              <strong style={{ fontSize: 16 }}>{overlayNode.name}</strong>
-              <span style={{ opacity: 0.7 }}>(tap a bubble to drill down)</span>
-            </div>
-            <svg
-              width={overlayPack.r * 2 + 24}
-              height={overlayPack.r * 2 + 24}
-              style={{ display: "block" }}
-            >
-              <g
-                transform={`translate(${overlayPack.r + 12},${overlayPack.r + 12})`}
-              >
-                {overlayPack
-                  .descendants()
-                  .filter((d) => d.depth === 1) /* immediate children only */
-                  .map((d, i) => {
-                    const fillKey =
-                      d.data.source ??
-                      (d.parent?.data.name || "") +
-                        (d.data.level ?? "") +
-                        (d.data.name ?? "");
-                    return (
-                      <g
-                        key={`${d.data.name}-overlay-${i}`}
-                        transform={`translate(${d.x - overlayPack.x},${d.y - overlayPack.y})`}
-                        style={{
-                          cursor: canDrillDown(d) ? "pointer" : "default",
-                        }}
-                        onClick={() => drillIntoOverlay(d)}
-                      >
-                        <circle
-                          r={d.r}
-                          fill={String(color(fillKey))}
-                          fillOpacity={0.9}
-                          stroke="rgba(255,255,255,0.2)"
-                          strokeWidth={1.25}
-                        />
-                        <text
-                          textAnchor="middle"
-                          dy="0.35em"
-                          style={{
-                            pointerEvents: "none",
-                            fill: "#fff",
-                            fontSize: Math.max(10, Math.min(18, d.r / 3)),
-                            fontWeight: 600,
-                            filter: "drop-shadow(0 1px 1px rgba(0,0,0,0.7))",
-                          }}
-                        >
-                          {d.data.name}
-                        </text>
-                      </g>
-                    );
-                  })}
-              </g>
-            </svg>
-            <div
-              style={{
-                marginTop: 8,
-                display: "flex",
-                gap: 8,
-                justifyContent: "flex-end",
-              }}
-            >
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <button
+                  onClick={overlayDrillUp}
+                  title="Drill up"
+                  style={{
+                    border: "1px solid #3a4157",
+                    background: "rgba(255,255,255,0.08)",
+                    color: "inherit",
+                    borderRadius: 8,
+                    padding: "6px 10px",
+                    cursor: "pointer",
+                  }}
+                >
+                  ← Up
+                </button>
+                <strong style={{ fontSize: 16 }}>{overlayNode.name}</strong>
+                <span style={{ opacity: 0.7 }}>
+                  (click a bubble to drill; click outside to close)
+                </span>
+              </div>
               <button
-                onClick={() => setOverlayName(null)}
+                onClick={() => setIsOverlayOpen(false)}
                 style={{
                   border: "1px solid #3a4157",
                   background: "rgba(255,255,255,0.08)",
@@ -458,6 +533,76 @@ export default function BubbleHierarchy({
               >
                 Close
               </button>
+            </div>
+
+            {/* Animated container keyed to reflow on focus change */}
+            <div
+              key={overlayAnimKey}
+              style={{
+                display: "grid",
+                placeItems: "center",
+                padding: 8,
+                transition:
+                  "transform 320ms cubic-bezier(.2,.8,.2,1), opacity 200ms ease",
+                transform: "scale(1)",
+              }}
+            >
+              <svg
+                width={overlayLayout.side}
+                height={overlayLayout.side}
+                style={{ display: "block" }}
+              >
+                <g>
+                  {overlayLayout.nodes.map((n, i) => {
+                    const fillKey =
+                      n.data.source ??
+                      `${n.parentId ?? ""}-${n.data.level ?? ""}-${n.data.name ?? ""}`;
+                    return (
+                      <g
+                        key={`${n.id}-${i}`}
+                        style={{
+                          transform: `translate(${n.x}px, ${n.y}px)`,
+                          transition:
+                            "transform 320ms cubic-bezier(.2,.8,.2,1)",
+                          cursor:
+                            n.data.children && n.data.children.length > 0
+                              ? "pointer"
+                              : "default",
+                        }}
+                        onClick={() => overlayDrillDown(n)}
+                      >
+                        <circle
+                          r={n.r}
+                          fill={String(color(fillKey))}
+                          fillOpacity={
+                            n.depth === 0 ? 0.75 : n.depth === 1 ? 0.88 : 0.95
+                          }
+                          stroke="rgba(255,255,255,0.2)"
+                          strokeWidth={1.25}
+                        />
+                        <text
+                          textAnchor="middle"
+                          dy="0.35em"
+                          style={{
+                            pointerEvents: "none",
+                            fill: "#fff",
+                            fontSize:
+                              n.depth === 0
+                                ? Math.max(12, Math.min(22, n.r / 2.4))
+                                : n.depth === 1
+                                  ? Math.max(11, Math.min(18, n.r / 2.8))
+                                  : Math.max(10, Math.min(16, n.r / 3.2)),
+                            fontWeight: 600,
+                            filter: "drop-shadow(0 1px 1px rgba(0,0,0,0.7))",
+                          }}
+                        >
+                          {n.name}
+                        </text>
+                      </g>
+                    );
+                  })}
+                </g>
+              </svg>
             </div>
           </div>
         </div>
