@@ -135,6 +135,14 @@ const clamp = (v: number, min: number, max: number) =>
  * Bubble PACKING layout for 3 levels (parent center, children around,
  * grandchildren around each child). No nesting—everything is "beside".
  */
+/**
+ * Bubble PACKING layout for 3 levels (parent center, children around,
+ * grandchildren around each child on the OUTER side only).
+ * Ensures grandchildren:
+ *  - never sit between parent and child
+ *  - avoid overlapping parent/children
+ *  - distribute along an outward arc around each child
+ */
 function computeBubblePackingLayout(
   focus: TreeNode,
   side: number
@@ -143,14 +151,12 @@ function computeBubblePackingLayout(
   const cy = side / 2;
 
   const children = (focus.children || []) as TreeNode[];
-  const maxChildCount = children.length;
-
-  // Radii tuning (adjust to taste)
   const rParent = clamp(side * 0.16, 40, 120);
 
-  // Children radii based on # of grandchildren to signal "weight"
+  // ---- Place CHILDREN on a ring around the parent (same as before) ----
   const childInfo = children.map((c) => {
     const gc = c.children?.length ?? 0;
+    // child radius scales a bit with number of grandchildren
     const r = clamp(
       side * 0.06 + gc * (side * 0.005),
       side * 0.05,
@@ -166,12 +172,12 @@ function computeBubblePackingLayout(
   );
   const baseRing =
     rParent + (childInfo.reduce((m, it) => Math.max(m, it.r), 0) || 0) + 28;
-  const ringR = Math.max(baseRing, circumferenceNeeded / (2 * Math.PI)); // ensure no overlap around ring
+  const ringR = Math.max(baseRing, circumferenceNeeded / (2 * Math.PI));
   const ringCirc = 2 * Math.PI * ringR;
 
-  // Place children around the parent by arc-length proportion (bigger radius → bigger arc)
   let theta = 0;
-  const placedChildren: PlacedBubble[] = childInfo.map((it, idx) => {
+  type ChildPlaced = PlacedBubble & { angle: number };
+  const placedChildren: ChildPlaced[] = childInfo.map((it) => {
     const arcLen = 2 * it.r + gapC;
     const delta = (arcLen / ringCirc) * 2 * Math.PI;
     const mid = theta + delta / 2;
@@ -187,39 +193,96 @@ function computeBubblePackingLayout(
       x,
       y,
       parentId: focus.name,
+      angle: mid, // <— angle from parent->child (used for outward arc)
     };
   });
 
-  // Grandchildren ring per child
+  // ---- Place GRANDCHILDREN on outward arc around each child ----
   const gapG = clamp(side * 0.006, 4, 12);
-  const rGrandchildBase = clamp(side * 0.028, 8, 22);
+  const minGrandR = clamp(side * 0.042, 13, 32); // floor size; can still scale up if room allows
+  const arcSpan = (150 * Math.PI) / 180; // 140° outward arc (tweak 120–160 for aesthetics)
+  const safety = 6; // padding to avoid touching child/neighbor
 
   const placedGrandchildren: PlacedBubble[] = [];
+
+  // Quick neighbor lookup to cap ring size so grandkids don't hit adjacent children
+  const childCount = placedChildren.length;
+  function neighborRingCap(ch: ChildPlaced, rG: number) {
+    if (childCount <= 1) return Infinity;
+    const idx = placedChildren.findIndex((p) => p.id === ch.id);
+    const prev = placedChildren[(idx - 1 + childCount) % childCount];
+    const next = placedChildren[(idx + 1) % childCount];
+
+    const distPrev = Math.hypot(ch.x - prev.x, ch.y - prev.y);
+    const distNext = Math.hypot(ch.x - next.x, ch.y - next.y);
+
+    // triangle inequality safe upper bound: ringG <= dist - neighbor.r - rG - safety
+    const capPrev = distPrev - prev.r - rG - safety;
+    const capNext = distNext - next.r - rG - safety;
+    return Math.max(0, Math.min(capPrev, capNext));
+  }
+
   for (const ch of placedChildren) {
     const gcNodes = (ch.data.children || []) as TreeNode[];
-    const cnt = gcNodes.length;
-    if (!cnt) continue;
+    const N = gcNodes.length;
+    if (!N) continue;
 
-    const circumferenceG = cnt * (2 * rGrandchildBase + gapG);
-    const ringG = Math.max(ch.r + 18, circumferenceG / (2 * Math.PI));
+    // Start with a candidate grandchild radius (could be tuned per child size)
+    let rG = minGrandR;
 
-    // Distribute equally; grandkids are same radius here (you can vary by value if you want)
-    for (let i = 0; i < cnt; i++) {
-      const angle = (i / cnt) * 2 * Math.PI;
+    // We want all N grandchildren on an outward arc of length: L = ringG * arcSpan.
+    // Needed arc length (no overlap): N * (2*rG + gapG). So ringG >= needed / arcSpan.
+    const neededArcLen = N * (2 * rG + gapG);
+
+    // Lower bound so grandkids don't touch child or parent:
+    // - not touching child: ringG >= ch.r + rG + safety
+    // - parent is always further away on outward side (child is already outside the parent),
+    //   so outward-only arc guarantees we never sit "between" parent & child.
+    let ringGmin = Math.max(neededArcLen / arcSpan, ch.r + rG + safety);
+
+    // Upper bound so grandkids don't hit neighboring children
+    let ringGmax = neighborRingCap(ch, rG);
+
+    // If we don't have enough room, try reducing rG proportionally once
+    if (ringGmax < ringGmin && isFinite(ringGmax) && ringGmax > 0) {
+      const ratio = clamp(ringGmax / ringGmin, 0.65, 1); // don't shrink below ~55%
+      rG = Math.max(6, rG * ratio);
+      const needed2 = N * (2 * rG + gapG);
+      ringGmin = Math.max(needed2 / arcSpan, ch.r + rG + safety);
+      ringGmax = neighborRingCap(ch, rG);
+    }
+
+    // Final ring radius for grandchildren around this child
+    let ringG = Math.max(ringGmin, 0);
+    if (isFinite(ringGmax))
+      ringG = Math.min(ringG, Math.max(ringGmax, ringGmin));
+
+    // Distribute grandkids evenly along outward arc centered at ch.angle
+    // Arc center = ch.angle (from parent to child). We use symmetric placement across the arc.
+    // Step by arc-length: Δθ_i ≈ (2*rG + gapG) / ringG
+    const stepTheta = (2 * rG + gapG) / ringG;
+    const totalTheta = (N - 1) * stepTheta; // spread N points by step
+    const thetaStart = ch.angle - totalTheta / 2; // centered on outward direction
+
+    for (let i = 0; i < N; i++) {
+      const theta = thetaStart + i * stepTheta;
+      const gx = ch.x + ringG * Math.cos(theta);
+      const gy = ch.y + ringG * Math.sin(theta);
+
       placedGrandchildren.push({
         id: `${ch.id}::${gcNodes[i].name}`,
         name: gcNodes[i].name,
         depth: 2,
         data: gcNodes[i],
-        r: rGrandchildBase,
-        x: ch.x + ringG * Math.cos(angle),
-        y: ch.y + ringG * Math.sin(angle),
+        r: rG,
+        x: gx,
+        y: gy,
         parentId: ch.id,
       });
     }
   }
 
-  // Parent at center (depth 0)
+  // Parent at center (render underneath)
   const parentPlaced: PlacedBubble = {
     id: focus.name,
     name: focus.name,
@@ -230,13 +293,12 @@ function computeBubblePackingLayout(
     y: cy,
   };
 
-  // Draw order: parent first (under) → children → grandkids
   const nodes = [parentPlaced, ...placedChildren, ...placedGrandchildren];
   return { nodes, side };
 }
 
 // ---------- Component ----------
-export default function BubbleHierarchy({
+export default function NewBubbleHierarchy({
   data,
   width = 900,
   height = 600,

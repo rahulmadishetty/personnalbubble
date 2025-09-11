@@ -1,52 +1,185 @@
 import Image from "next/image";
+import CircularPacking from "@/components/CircularPacking";
+import PackedBubbles from "@/components/PackedBubbles";
 import BubbleHierarchy from "@/components/BubbleHierarchy";
+import NewBubbleHierarchy from "@/components/NewBubbleHierarchy";
 
 const sample1 = [
-  { name: "Kusama", level: 1, source: "kusama" },
-  { name: "Bio", level: 2, parent: "Kusama", source: "kusama" },
-  { name: "Art", level: 2, parent: "Kusama", source: "kusama" },
-  { name: "Style", level: 3, parent: "Art", source: "kusama" },
-  { name: "Exhibits", level: 3, parent: "Art", source: "kusama" },
-  { name: "Infinity Mirrors", level: 4, parent: "Exhibits", source: "kusama" },
-  { name: "Polka Dots", level: 4, parent: "Exhibits", source: "kusama" },
-  { name: "Pumpkin", level: 4, parent: "Exhibits", source: "kusama" },
-  { name: "Victoria Miro", level: 4, parent: "Exhibits", source: "kusama" },
-  { name: "David Zwirner", level: 4, parent: "Exhibits", source: "kusama" },
-  { name: "Fondation LV", level: 4, parent: "Exhibits", source: "kusama" },
-  { name: "Kusama Museum", level: 4, parent: "Exhibits", source: "kusama" },
+  { name: "Ford Motor Company", level: 1, source: "ford-corporate" },
+
+  {
+    name: "History",
+    level: 2,
+    parent: "Ford Motor Company",
+    source: "ford-corporate",
+  },
+  {
+    name: "Products",
+    level: 2,
+    parent: "Ford Motor Company",
+    source: "ford-corporate",
+  },
+  {
+    name: "Global Presence",
+    level: 2,
+    parent: "Ford Motor Company",
+    source: "ford-corporate",
+  },
+
+  { name: "Model T", level: 3, parent: "History", source: "ford-corporate" },
+  {
+    name: "Assembly Line",
+    level: 3,
+    parent: "History",
+    source: "ford-corporate",
+  },
+
+  { name: "SUVs", level: 3, parent: "Products", source: "ford-corporate" },
+  { name: "Trucks", level: 3, parent: "Products", source: "ford-corporate" },
+  { name: "EVs", level: 3, parent: "Products", source: "ford-corporate" },
+
+  {
+    name: "USA",
+    level: 3,
+    parent: "Global Presence",
+    source: "ford-corporate",
+  },
+  {
+    name: "Europe",
+    level: 3,
+    parent: "Global Presence",
+    source: "ford-corporate",
+  },
+  {
+    name: "Asia",
+    level: 3,
+    parent: "Global Presence",
+    source: "ford-corporate",
+  },
+
+  { name: "Mustang Mach-E", level: 4, parent: "EVs", source: "ford-corporate" },
+  {
+    name: "F-150 Lightning",
+    level: 4,
+    parent: "EVs",
+    source: "ford-corporate",
+  },
+  { name: "Bronco", level: 4, parent: "SUVs", source: "ford-corporate" },
+  { name: "Ranger", level: 4, parent: "Trucks", source: "ford-corporate" },
+  {
+    name: "Cologne Plant",
+    level: 4,
+    parent: "Europe",
+    source: "ford-corporate",
+  },
+  { name: "Dearborn HQ", level: 4, parent: "USA", source: "ford-corporate" },
 ];
 
 const sample2 = [
-  { name: "Louis Vuitton", level: 1, source: "louis" },
-  { name: "History", level: 2, parent: "Louis Vuitton", source: "louis" },
-  { name: "Products", level: 2, parent: "Louis Vuitton", source: "louis" },
-  { name: "Location", level: 2, parent: "Louis Vuitton", source: "louis" },
+  { name: "Ford Europe", level: 1, source: "ford-europe" },
+
+  { name: "Locations", level: 2, parent: "Ford Europe", source: "ford-europe" },
   {
-    name: "Travel & Culture",
+    name: "Popular Models",
     level: 2,
-    parent: "Louis Vuitton",
-    source: "louis",
+    parent: "Ford Europe",
+    source: "ford-europe",
   },
-  { name: "New York", level: 3, parent: "Location", source: "louis" },
-  { name: "Paris", level: 3, parent: "Location", source: "louis" },
-  { name: "London", level: 3, parent: "Location", source: "louis" },
-  { name: "St Tropez", level: 3, parent: "Location", source: "louis" },
   {
-    name: "Fondation LV",
-    level: 3,
-    parent: "Travel & Culture",
-    source: "louis",
+    name: "Sustainability",
+    level: 2,
+    parent: "Ford Europe",
+    source: "ford-europe",
   },
-  { name: "Store", level: 4, parent: "New York", source: "louis" },
-  { name: "Hotel", level: 4, parent: "New York", source: "louis" },
-  { name: "Restaurant", level: 4, parent: "New York", source: "louis" },
-  { name: "Store", level: 4, parent: "Paris", source: "louis" },
-  { name: "Hotel", level: 4, parent: "Paris", source: "louis" },
-  { name: "Restaurant", level: 4, parent: "Paris", source: "louis" },
-  { name: "Store", level: 4, parent: "London", source: "louis" },
-  { name: "Store", level: 4, parent: "St Tropez", source: "louis" },
-  { name: "Restaurant", level: 4, parent: "St Tropez", source: "louis" },
+
+  { name: "Germany", level: 3, parent: "Locations", source: "ford-europe" },
+  { name: "UK", level: 3, parent: "Locations", source: "ford-europe" },
+  { name: "Spain", level: 3, parent: "Locations", source: "ford-europe" },
+
+  { name: "Fiesta", level: 3, parent: "Popular Models", source: "ford-europe" },
+  { name: "Focus", level: 3, parent: "Popular Models", source: "ford-europe" },
+  { name: "Puma", level: 3, parent: "Popular Models", source: "ford-europe" },
+
+  {
+    name: "Electrification",
+    level: 3,
+    parent: "Sustainability",
+    source: "ford-europe",
+  },
+  {
+    name: "Hybrid Tech",
+    level: 3,
+    parent: "Sustainability",
+    source: "ford-europe",
+  },
+
+  { name: "Cologne Plant", level: 4, parent: "Germany", source: "ford-europe" },
+  { name: "Dagenham Plant", level: 4, parent: "UK", source: "ford-europe" },
+  { name: "Valencia Plant", level: 4, parent: "Spain", source: "ford-europe" },
+
+  {
+    name: "Fiesta Hybrid",
+    level: 4,
+    parent: "Hybrid Tech",
+    source: "ford-europe",
+  },
+  {
+    name: "All-Electric Puma",
+    level: 4,
+    parent: "Electrification",
+    source: "ford-europe",
+  },
 ];
+
+const sample3 = [
+  { name: "Ford Technologies", level: 1, source: "ford-tech" },
+
+  {
+    name: "Smart Mobility",
+    level: 2,
+    parent: "Ford Technologies",
+    source: "ford-tech",
+  },
+  {
+    name: "Connected Car",
+    level: 2,
+    parent: "Ford Technologies",
+    source: "ford-tech",
+  },
+  {
+    name: "Services",
+    level: 2,
+    parent: "Ford Technologies",
+    source: "ford-tech",
+  },
+
+  {
+    name: "Ride Sharing",
+    level: 3,
+    parent: "Smart Mobility",
+    source: "ford-tech",
+  },
+  {
+    name: "E-Scooters",
+    level: 3,
+    parent: "Smart Mobility",
+    source: "ford-tech",
+  },
+
+  { name: "SYNC", level: 3, parent: "Connected Car", source: "ford-tech" },
+  { name: "FordPass", level: 3, parent: "Connected Car", source: "ford-tech" },
+
+  { name: "Financing", level: 3, parent: "Services", source: "ford-tech" },
+  { name: "Leasing", level: 3, parent: "Services", source: "ford-tech" },
+  { name: "Maintenance", level: 3, parent: "Services", source: "ford-tech" },
+
+  { name: "Chariot", level: 4, parent: "Ride Sharing", source: "ford-tech" },
+  { name: "Spin", level: 4, parent: "E-Scooters", source: "ford-tech" },
+  { name: "SYNC 4", level: 4, parent: "SYNC", source: "ford-tech" },
+  { name: "FordPass App", level: 4, parent: "FordPass", source: "ford-tech" },
+];
+
+const allData = [...sample1, ...sample2, ...sample3];
 
 export default function Home() {
   return (
@@ -61,17 +194,18 @@ export default function Home() {
 
       {/* Example 1 */}
       <section style={{ marginBottom: 32 }}>
-        <h2 style={{ margin: "8px 0" }}>Sample JSON 1 — Kusama</h2>
+        <h2 style={{ margin: "8px 0" }}>Sample JSON 1 </h2>
         <div style={{ height: 520 }}>
-          <BubbleHierarchy data={sample1} />
+          {/* <PackedBubbles data={sample1} /> */}
+          <BubbleHierarchy data={sample3} />
         </div>
       </section>
 
       {/* Example 2 */}
       <section>
-        <h2 style={{ margin: "8px 0" }}>Sample JSON 2 — Louis Vuitton</h2>
+        <h2 style={{ margin: "8px 0" }}>Sample JSON 2 </h2>
         <div style={{ height: 520 }}>
-          <BubbleHierarchy data={sample2} />
+          <NewBubbleHierarchy data={sample1} />
         </div>
       </section>
     </main>

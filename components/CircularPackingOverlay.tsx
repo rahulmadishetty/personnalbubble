@@ -154,7 +154,7 @@ function assignDepthValues(node: TreeNode, depth = 0): void {
 
 // ---------- Component ----------
 
-export default function BubbleHierarchy({
+export default function CircularPackingOverlay({
   data,
   width = 900,
   height = 600,
