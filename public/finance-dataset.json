@@ -1,0 +1,38 @@
+{
+  "nodes": [
+    { "key": "acct:A1", "label": "Checking - Main (Bank)", "tag": "Account", "cluster": "0", "currency": "USD", "score": 0.0023 },
+    { "key": "acct:A2", "label": "Brokerage - Long (Brokerage)", "tag": "Account", "cluster": "0", "currency": "USD", "score": 0.0031 },
+
+    { "key": "party:P1", "label": "Acme Corp (Vendor)", "tag": "Party", "cluster": "1", "score": 0.0011 },
+    { "key": "party:P2", "label": "Jane Doe (Customer)", "tag": "Party", "cluster": "1", "score": 0.0042 },
+    { "key": "party:P3", "label": "Globex LLC (Vendor)", "tag": "Party", "cluster": "1", "score": 0.0010 },
+
+    { "key": "inst:I1", "label": "AAPL • Apple Inc.", "tag": "Instrument", "cluster": "2", "class": "Stock", "score": 0.0020 },
+    { "key": "inst:I2", "label": "BND • Total Bond Market", "tag": "Instrument", "cluster": "2", "class": "ETF", "score": 0.0018 },
+    { "key": "inst:I3", "label": "TSLA • Tesla, Inc.", "tag": "Instrument", "cluster": "2", "class": "Stock", "score": 0.0012 }
+  ],
+
+  "edges": [
+    ["party:P2", "acct:A1"],
+    ["party:P1", "acct:A1"],
+    ["party:P2", "acct:A1"],
+    ["party:P3", "acct:A1"],
+    ["party:P2", "acct:A2"],
+
+    ["acct:A2", "inst:I1"],
+    ["acct:A2", "inst:I2"],
+    ["acct:A2", "inst:I3"]
+  ],
+
+  "clusters": [
+    { "key": "0", "color": "#2563eb", "clusterLabel": "Accounts" },
+    { "key": "1", "color": "#10b981", "clusterLabel": "Parties" },
+    { "key": "2", "color": "#f59e0b", "clusterLabel": "Instruments" }
+  ],
+
+  "tags": [
+    { "key": "Account", "image": "account.svg" },
+    { "key": "Party", "image": "party.svg" },
+    { "key": "Instrument", "image": "instrument.svg" }
+  ]
+}

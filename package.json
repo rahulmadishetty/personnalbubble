@@ -9,13 +9,17 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@react-sigma/core": "^5.0.4",
+    "@react-sigma/graph-search": "^5.0.4",
     "d3": "^7.9.0",
     "d3-hierarchy": "^3.1.2",
     "d3-scale": "^4.0.2",
     "graphology": "^0.26.0",
+    "graphology-layout": "^0.6.1",
+    "graphology-layout-forceatlas2": "^0.10.1",
     "next": "15.4.6",
-    "react": "19.1.0",
-    "react-dom": "19.1.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
     "sigma": "^3.0.2"
   },
   "devDependencies": {
