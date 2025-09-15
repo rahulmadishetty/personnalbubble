@@ -197,7 +197,8 @@ export default function Home() {
         <h2 style={{ margin: "8px 0" }}>Sample JSON 1 </h2>
         <div style={{ height: 520 }}>
           {/* <PackedBubbles data={sample1} /> */}
-          <BubbleHierarchy data={sample2} />
+          <PackedBubbles data={allData} groupBy="none" />
+          {/* <BubbleHierarchy data={sample2} /> */}
         </div>
       </section>
 
@@ -205,7 +206,7 @@ export default function Home() {
       <section>
         <h2 style={{ margin: "8px 0" }}>Sample JSON 2 </h2>
         <div style={{ height: 520 }}>
-          <NewBubbleHierarchy data={sample3} />
+          <NewBubbleHierarchy data={sample2} />
         </div>
       </section>
     </main>

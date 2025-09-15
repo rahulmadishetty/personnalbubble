@@ -118,8 +118,17 @@ function buildGraphFromDataset(ds: Dataset) {
 
   // nodes...
   for (const n of ds.nodes) {
-    const { key, label, cluster, tag, score, color: colorOverride, ...rest } = n;
-    const size = score && score > 0 ? 6 + Math.min(18, Math.log10(score * 1e6 + 10)) : 8;
+    const {
+      key,
+      label,
+      cluster,
+      tag,
+      score,
+      color: colorOverride,
+      ...rest
+    } = n;
+    const size =
+      score && score > 0 ? 6 + Math.min(18, Math.log10(score * 1e6 + 10)) : 8;
     const color = colorOverride || clusterColors.get(cluster) || "#9aa1a9";
     g.addNode(key, { label, kind: tag, cluster, size, color, ...rest });
   }
@@ -136,7 +145,10 @@ function buildGraphFromDataset(ds: Dataset) {
   }
 
   circular.assign(g, { scale: 1 });
-  forceAtlas2.assign(g, { iterations: 250, settings: { gravity: 1, scalingRatio: 12 } });
+  forceAtlas2.assign(g, {
+    iterations: 250,
+    settings: { gravity: 1, scalingRatio: 12 },
+  });
   return g;
 }
 
@@ -181,10 +193,15 @@ function ControlsWithCamera({
   );
 }
 
-function FocusReducers({ graph, focus }: { graph: Graph; focus: string | null }) {
-  const setSettings = useSetSettings(); 
+function FocusReducers({
+  graph,
+  focus,
+}: {
+  graph: Graph;
+  focus: string | null;
+}) {
+  const setSettings = useSetSettings();
   useEffect(() => {
-    
     setSettings(reducersForFocus(graph, focus));
   }, [graph, focus, setSettings]);
   return null;
@@ -249,7 +266,7 @@ export default function FinanceSigmaGraph({
         )}
 
         <hr style={{ margin: "16px 0", borderColor: "#2a3348" }} />
-        <h4 style={{ margin: "8px 0" }}>Legend</h4>
+        <h4 style={{ margin: "8px 0" }}>Clusters</h4>
         <Legend clusters={data.clusters} />
       </aside>
     </div>
